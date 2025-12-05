@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Circle & Bomb Game</title>
+<style>
+  body {
+    margin:0;
+    padding:0;
+    text-align:center;
+    font-family:Arial,sans-serif;
+    overflow:hidden;
+    background: linear-gradient(120deg, #1a2a6c, #b21f1f, #fdbb2d);
+    background-size: 400% 400%;
+    animation: gradientBG 15s ease infinite;
+    color:white;
+  }
+  @keyframes gradientBG {
+    0% {background-position:0% 50%;}
+    50% {background-position:100% 50%;}
+    100% {background-position:0% 50%;}
+  }
+  #gameArea {
+    position:relative;
+    width:400px;
+    height:400px;
+    margin:40px auto;
+    border:2px solid #fff;
+    background:#333;
+    overflow:hidden;
+    display:none;
+  }
+  #score, #level, #timer, #highScore { font-size:20px; margin:5px; }
+  #startScreen, #endScreen, #winScreen {
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+  }
+  button { padding:10px 20px; font-size:18px; cursor:pointer; margin-top:10px; }
+  #endGameBtn { background:#f00; color:#fff; }
+  @keyframes pulse {
+    0% { transform: scale(1); opacity:1; }
+    50% { transform: scale(1.2); opacity:0.8; }
+    100% { transform: scale(1); opacity:1; }
+  }
+  .circle-appear { animation: pulse 0.5s ease-in-out; }
+  .bomb-style {
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    font-size:24px;
+    color:white;
+    user-select:none;
+  }
+</style>
+</head>
+<body>
+
+<div id="startScreen">
+  <h1>Circle & Bomb Game</h1>
+  <label for="levelSelect">Choose Game Time:</label>
+  <select id="levelSelect">
+    <option value="60">Level 1 - 1 Minute</option>
+    <option value="30">Level 2 - 30 Seconds</option>
+    <option value="15">Level 3 - 15 Seconds</option>
+  </select>
+  <button id="startBtn">Start Game 🎮</button>
+  <div id="highScore">High Score: 0</div>
+</div>
+
+<div id="gameUI" style="display:none;">
+  <div id="score">Score: 0</div>
+  <div id="level">Level: 1</div>
+  <div id="timer">Time: 00:00</div>
+  <button id="endGameBtn">End Game</button>
+  <div id="gameArea"></div>
+</div>
+
+<div id="endScreen" style="display:none;">
+  <h1>Game Over</h1>
+  <div id="finalScore"></div>
+  <div id="finalHighScore"></div>
+  <button id="restartBtn">Play Again</button>
+</div>
+
+<div id="winScreen" style="display:none;">
+  🎉 You Win! 🎉
+</div>
+
+<script>
+const gameArea = document.getElementById("gameArea");
+const scoreDisplay = document.getElementById("score");
+const levelDisplay = document.getElementById("level");
+const timerDisplay = document.getElementById("timer");
+const startScreen = document.getElementById("startScreen");
+const gameUI = document.getElementById("gameUI");
+const endScreen = document.getElementById("endScreen");
+const finalScore = document.getElementById("finalScore");
+const finalHighScore = document.getElementById("finalHighScore");
+const highScoreDisplay = document.getElementById("highScore");
+const winScreen = document.getElementById("winScreen");
+
+const startBtn = document.getElementById("startBtn");
+const restartBtn = document.getElementById("restartBtn");
+const endGameBtn = document.getElementById("endGameBtn");
+const levelSelect = document.getElementById("levelSelect");
+
+let score = 0;
+let level = 1;
+let circleSize = 50;
+let showTime = 1000;
+let startTime = Date.now();
+let gameInterval, timerInterval, gameOverTimeout;
+let gameOver = false;
+let gameDuration = 60;
+let highScore = localStorage.getItem("highScore") || 0;
+highScoreDisplay.textContent = "High Score: " + highScore;
+
+const maxCircles = 3;
+const maxBombs = 2;
+
+function randomPosition(el, size){
+  const maxX = gameArea.clientWidth - size;
+  const maxY = gameArea.clientHeight - size;
+  const x = Math.random() * maxX;
+  const y = Math.random() * maxY;
+  el.style.left = x + "px";
+  el.style.top = y + "px";
+}
+
+function showCirclesAndBombs(){
+  if(gameOver) return;
+
+  gameArea.innerHTML = '';
+
+  // Circles
+  for(let i=0; i<maxCircles; i++){
+    const circle = document.createElement('div');
+    circle.classList.add('circle-appear');
+    circle.style.width = circleSize + 'px';
+    circle.style.height = circleSize + 'px';
+    circle.style.position = 'absolute';
+    circle.style.background = 'red';
+    circle.style.borderRadius = '50%';
+    circle.style.cursor = 'pointer';
+    randomPosition(circle, circleSize);
+    gameArea.appendChild(circle);
+
+    circle.addEventListener('click', ()=>{
+      if(gameOver) return;
+      score++;
+      scoreDisplay.textContent = "Score: "+score;
+      if(showTime>300) showTime -=10;
+      circle.remove();
+    });
+  }
+
+  // Bombs
+  for(let i=0; i<maxBombs; i++){
+    if(Math.random() < 0.5 + score/50){
+      const bomb = document.createElement('div');
+      bomb.classList.add('bomb-style');
+      bomb.style.width = '50px';
+      bomb.style.height = '50px';
+      bomb.style.position = 'absolute';
+      bomb.style.background = 'black';
+      bomb.style.borderRadius = '50%';
+      bomb.style.cursor = 'pointer';
+      bomb.textContent = '💣';
+      randomPosition(bomb, 50);
+      gameArea.appendChild(bomb);
+
+      bomb.addEventListener('click', ()=>{
+        if(gameOver) return;
+        score--;
+        if(score<0) score=0;
+        scoreDisplay.textContent = "Score: "+score;
+        bomb.remove();
+      });
+    }
+  }
+
+  setTimeout(()=>{
+    if(gameOver) return;
+    showCirclesAndBombs();
+  }, showTime);
+}
+
+function updateTimer(){
+  if(gameOver) return;
+  const elapsed = Math.floor((Date.now() - startTime)/1000);
+  let remaining = gameDuration - elapsed;
+  if(remaining<0) remaining = 0;
+  let mins = Math.floor(remaining/60);
+  let secs = remaining % 60;
+  timerDisplay.textContent = `Time: ${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+  if(remaining === 0) endGame();
+}
+
+function endGame(){
+  if(gameOver) return;
+  gameOver = true;
+  clearInterval(timerInterval);
+  clearTimeout(gameOverTimeout);
+  gameUI.style.display = "none";
+  endScreen.style.display = "flex";
+  finalScore.textContent = "Your Score: " + score;
+  if(score > highScore){
+    highScore = score;
+    localStorage.setItem("highScore", highScore);
+  }
+  finalHighScore.textContent = "High Score: " + highScore;
+}
+
+startBtn.addEventListener("click", ()=>{
+  gameDuration = parseInt(levelSelect.value);
+
+  startScreen.style.display = "none";
+  endScreen.style.display = "none";
+  winScreen.style.display = "none";
+  gameUI.style.display = "block";
+  gameArea.style.display = "block";
+
+  score = 0;
+  level = 1;
+  showTime = 1000;
+  circleSize = 50;
+  startTime = Date.now();
+  gameOver = false;
+  scoreDisplay.textContent = "Score: 0";
+  levelDisplay.textContent = "Level: 1";
+
+  showCirclesAndBombs();
+  timerInterval = setInterval(updateTimer, 500);
+  gameOverTimeout = setTimeout(endGame, gameDuration * 1000);
+});
+
+restartBtn.addEventListener("click", ()=>{ startBtn.click(); });
+endGameBtn.addEventListener("click", ()=>{ endGame(); });
+</script>
+
+</body>
+</html>
